@@ -5,7 +5,7 @@ Turn your Termux into a **Kali Linux inspired environment** with a beautiful pro
 <p align="center">
   <img src="https://img.shields.io/badge/platform-termux-green?logo=android" alt="Termux">
   <img src="https://img.shields.io/badge/shell-bash-blue?logo=gnu-bash" alt="Bash">
-  <img src="https://img.shields.io/badge/license-MIT-yellow" alt="License">
+  <img src="https://img.shields.io/badge/license-Apache-2.0-yellow" alt="License">
 </p>
 
 ---
