@@ -1,13 +1,13 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ==========================================================
-#  Kaliify-Termux
-#  Turn your Termux into a clean Kali-like shell environment
+#  Kaliify-Termux v1.0
+#  Make your Termux look and feel like Kali Linux Zsh
 #  Author: Afffuck
-# My Telegram: xthefs
+#  Telegram: @xthefs
 #  License: Apache-2.0
 # ==========================================================
 
-set -e
+set -euo pipefail
 
 # ---------- Helpers ----------
 timestamp=$(date +%Y%m%d-%H%M%S)
@@ -16,14 +16,13 @@ mkdir -p "$backup_dir"
 
 log() { echo -e "\033[1;32m[+] $*\033[0m"; }
 warn() { echo -e "\033[1;33m[!] $*\033[0m"; }
-err() { echo -e "\033[1;31m[✘] $*\033[0m"; }
 
-# ---------- Safe package installer ----------
+# ---------- Package Installer ----------
 install_pkg() {
     for pkg in "$@"; do
         if ! command -v "$pkg" &>/dev/null; then
             log "Installing $pkg..."
-            pkg install -y "$pkg"
+            pkg install -y "$pkg" || warn "Package $pkg not found."
         else
             log "$pkg already installed ✓"
         fi
@@ -31,85 +30,96 @@ install_pkg() {
 }
 
 # ---------- Step 1: Install dependencies ----------
-log "Updating package index..."
+log "Updating packages..."
 pkg update -y && pkg upgrade -y
 
-install_pkg python git whois curl wget tar unzip neofetch tmux \
-    zsh eza fzf fd rg bat
+install_pkg python git curl wget tar unzip neofetch tmux zsh eza fzf fd bat
 
-# Aliases compatibility (batcat vs bat, fd vs fdfind)
+# Fix aliases if needed
+echo > "$HOME/.aliases"
 if command -v batcat &>/dev/null && ! command -v bat &>/dev/null; then
-    ln -s "$(command -v batcat)" "$PREFIX/bin/bat"
+    echo "alias bat='batcat'" >> "$HOME/.aliases"
 fi
 if command -v fdfind &>/dev/null && ! command -v fd &>/dev/null; then
-    ln -s "$(command -v fdfind)" "$PREFIX/bin/fd"
+    echo "alias fd='fdfind'" >> "$HOME/.aliases"
 fi
 
 # ---------- Step 2: Remove Termux banner ----------
 touch ~/.hushlogin
 
 # ---------- Step 3: Backup old configs ----------
-for f in .zshrc .bashrc .termux/termux.properties; do
+mkdir -p "$HOME/.termux"
+for f in .zshrc .bashrc .termux/termux.properties .aliases; do
     [ -f "$HOME/$f" ] && cp "$HOME/$f" "$backup_dir/"
 done
 
-# ---------- Step 4: Configure .zshrc ----------
+# ---------- Step 4: Install Zsh plugins ----------
+mkdir -p ~/.zsh-plugins
+cd ~/.zsh-plugins
+
+[ ! -d zsh-autosuggestions ] && git clone https://github.com/zsh-users/zsh-autosuggestions.git
+[ ! -d zsh-syntax-highlighting ] && git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
+[ ! -d zsh-history-substring-search ] && git clone https://github.com/zsh-users/zsh-history-substring-search.git
+
+cd ~
+
+# ---------- Step 5: Configure .zshrc ----------
 cat > "$HOME/.zshrc" <<'EOF'
-# ====== Zsh configuration (Kaliify) ======
+# ====== Kali-like Zsh configuration ======
 
-# Colours
 autoload -U colors && colors
-
-# Prompt: user@host:path (git) $ with status and clock
-PROMPT='%{$fg[cyan]%}%n%{$reset_color%}@%{$fg[blue]%}%m %{$fg[green]%}%~%{$reset_color%}$(git_prompt_info)
-%{$fg[red]%}%(!.#.$)%{$reset_color%} '
-
-RPROMPT='%{$fg[yellow]%}%D{%H:%M}%{$reset_color%}'
-
-# Git prompt
-autoload -Uz vcs_info
-precmd() { vcs_info }
-zstyle ':vcs_info:*' enable git
-zstyle ':vcs_info:git:*' formats '%{$fg[magenta]%}(%b)%{$reset_color%}'
-zstyle ':vcs_info:git:*' actionformats '%{$fg[magenta]%}(%b|%a)%{$reset_color%}'
 setopt prompt_subst
 
 # History
 HISTFILE=~/.zsh_history
-HISTSIZE=5000
-SAVEHIST=5000
+HISTSIZE=10000
+SAVEHIST=10000
 setopt appendhistory sharehistory histignoredups
 
 # Completion
 autoload -U compinit && compinit
-
-# Tab menu
 zstyle ':completion:*' menu select
 bindkey -e
 
-# Accept suggestions with → arrow
-bindkey '^[[C' forward-word
-autoload -Uz predict-on
-predict-on
-
-# Up/down for history
-bindkey '^[[A' history-search-backward
-bindkey '^[[B' history-search-forward
+# Plugins
+source $HOME/.zsh-plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+source $HOME/.zsh-plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+source $HOME/.zsh-plugins/zsh-history-substring-search/zsh-history-substring-search.zsh
 
 # Aliases
+[ -f ~/.aliases ] && source ~/.aliases
 alias ls='eza --icons --group-directories-first'
 alias cat='bat --style=plain --paging=never'
-alias grep='rg'
-alias ffind='fd'
+alias grep='rg || grep'
 
-# Neofetch on start
-[ -x "$(command -v neofetch)" ] && neofetch
+# Git branch in prompt
+autoload -Uz vcs_info
+precmd() { vcs_info }
+zstyle ':vcs_info:*' enable git
+zstyle ':vcs_info:git:*' formats '(%b)'
+zstyle ':vcs_info:git:*' actionformats '(%b|%a)'
+
+# ----------- Kali Linux style prompt -----------
+PROMPT=$'%F{cyan}┌──(%n㉿%m)-[%~]${vcs_info_msg_0_}\n└─%# %f'
 EOF
 
-# ---------- Step 5: Termux extra-keys ----------
-mkdir -p ~/.termux
+# ---------- Step 6: Termux extra keys ----------
 cat > ~/.termux/termux.properties <<'EOF'
 extra-keys = [ \
+ ['ESC','/','-','HOME','UP','END','PGUP'], \
+ ['TAB','CTRL','ALT','LEFT','DOWN','RIGHT','PGDN'] \
+]
+EOF
+termux-reload-settings
+
+# ---------- Step 7: Auto-start Zsh ----------
+if ! grep -q "exec zsh" "$HOME/.bashrc" 2>/dev/null; then
+    echo '[[ $- == *i* ]] && exec zsh' >> "$HOME/.bashrc"
+fi
+
+log "✔ Kaliify setup completed!"
+warn "Previous configs saved in $backup_dir"
+warn "Restart Termux to apply changes."extra-keys = [ \
  ['ESC','/','-','HOME','UP','END','PGUP'], \
  ['TAB','CTRL','ALT','LEFT','DOWN','RIGHT','PGDN'] \
 ]
