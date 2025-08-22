@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ==========================================================
 #  Kaliify-Termux Uninstaller
-#  License: MIT
+#  License: Apache-2.0
 # ==========================================================
 
 set -e
