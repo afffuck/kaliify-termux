@@ -26,7 +26,7 @@ Clone and run the installer:
 
 ```bash
 pkg install -y git
-git clone https://github.com/YourUsername/kaliify-termux.git
+git clone https://github.com/afffuck/kaliify-termux.git
 cd kaliify-termux
 chmod +x kaliify-termux.sh
 ./kaliify-termux.sh
